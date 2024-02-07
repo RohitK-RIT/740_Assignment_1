@@ -166,7 +166,12 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ClCompile Include="_740_Assignment_1.cpp" />
+    <ClCompile Include="DrawableObject.cpp" />
+    <ClCompile Include="Paint.cpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="DrawableObject.h" />
+    <ClInclude Include="Paint.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
