@@ -1,39 +1,56 @@
-﻿#ifdef __APPLE__
-#include <GLUT/glut.h>
-#else
-#include <GL/freeglut.h>
-#endif
-
+﻿#include <GL/freeglut.h>
 #include <iostream>
+#include <vector>
+
 using namespace std;
+
+struct vertex
+{
+	float x, y;
+};
+
+struct color
+{
+	float r, g, b;
+};
+
+struct object
+{
+	vector<vertex> vertices;
+	GLenum draw_type;
+	const color* color;
+	const float* point_size;
+};
 
 float canvas_size[] = {10.0f, 10.0f};
 int raster_size[] = {800, 600};
 
-// structure for storing 3 2D vertices of a triangle
-int num_of_vertices = 0;
-float v[2 * 3];
-float color[3];
-
 float mouse_pos[2];
+int total_vertices;
+object current_object;
+vector<object> completed_objects;
+
+constexpr float small_point = 1.0f, medium_point = 5.0f, large_point = 10.0f;
+constexpr color red = {1.0f, 0.0f, 0.0f}, green = {0.0f, 1.0f, 0.0f}, blue = {0.0f, 0.0f, 1.0f};
 
 void init()
 {
-	for (int i = 0; i < 6; i++)
-		v[i] = 0.0f;
 	mouse_pos[0] = mouse_pos[1] = 0.0f;
-	color[0] = 1.0f;
-	color[1] = color[2] = 0.0f;
+	current_object.vertices.clear();
+	current_object.draw_type = GL_LINE_LOOP;
+	current_object.color = &red;
+	current_object. point_size = &small_point;
+	total_vertices = 3;
 }
 
 void drawCursor()
 {
-	glColor3f(1.0f, 0.0f, 1.0f);
-	glPointSize(10.0f);
+	glColor3f(1.0f, 0.0f, 1.0f); // Purple
+	glPointSize(large_point);
 	glBegin(GL_POINTS);
 	glVertex2fv(mouse_pos);
 	glEnd();
-	glPointSize(1.0f);
+	glPointSize(medium_point);
 }
 
 void display()
@@ -41,28 +58,93 @@ void display()
 	glClearColor(1.0, 1.0, 1.0, 0.0);
 	glClear(GL_COLOR_BUFFER_BIT);
 
-	glColor3fv(color);
 	glMatrixMode(GL_MODELVIEW);
 	glLoadIdentity();
 
-	if (num_of_vertices > 0 && num_of_vertices < 3)
+	// Draw completed objects
+	for (const object& object : completed_objects)
 	{
-		glBegin(GL_LINE_STRIP);
-		for (int i = 0; i < num_of_vertices; i++)
-			glVertex2fv(v + i * 2);
-		glVertex2fv(mouse_pos);
+		glColor3f(object.color->r, object.color->g, object.color->b);
+		glPointSize(*object.point_size);
+		glBegin(object.draw_type);
+		for (const vertex& vertex : object.vertices)
+		{
+			glVertex2f(vertex.x, vertex.y);
+		}
 		glEnd();
+		glPointSize(*current_object.point_size);
 	}
-	else if (num_of_vertices == 3)
+
+	// Draw current object
+	if (!current_object.vertices.empty())
 	{
-		glBegin(GL_TRIANGLES);
-		for (int i = 0; i < num_of_vertices; i++)
-			glVertex2fv(v + i * 2);
+		glColor3f(current_object.color->r, current_object.color->g, current_object.color->b);
+		glPointSize(*current_object.point_size);
+		glBegin(current_object.draw_type);
+		if (total_vertices == 2)
+		{
+			if (!current_object.vertices.empty())
+			{
+				const auto first_vertex = current_object.vertices[0];
+				glVertex2f(first_vertex.x, first_vertex.y);
+				glVertex2f(first_vertex.x, mouse_pos[1]);
+				glVertex2fv(mouse_pos);
+				glVertex2f(mouse_pos[0], first_vertex.y);
+			}
+		}
+		else
+		{
+			for (const vertex& vertex : current_object.vertices)
+			{
+				glVertex2f(vertex.x, vertex.y);
+			}
+			glVertex2fv(mouse_pos);
+		}
 		glEnd();
+		glPointSize(*current_object.point_size);
 	}
 
 	drawCursor();
 	glutSwapBuffers();
+}
+
+void mouse(int button, int state, int x, int y)
+{
+	if (button == GLUT_LEFT_BUTTON && state == GLUT_DOWN)
+	{
+		mouse_pos[0] = static_cast<float>(x) / raster_size[0] * canvas_size[0];
+		mouse_pos[1] = static_cast<float>(raster_size[1] - y) / raster_size[1] * canvas_size[1];
+
+		current_object.vertices.push_back({mouse_pos[0], mouse_pos[1]});
+
+		if (static_cast<int>(current_object.vertices.size()) == total_vertices)
+		{
+			const auto temp = current_object.draw_type;
+			switch (total_vertices)
+			{
+			case 2:
+				current_object.draw_type = GL_QUADS;
+				const auto first_vertex = current_object.vertices[0];
+				const auto second_vertex = current_object.vertices[1];
+				current_object.vertices.insert(current_object.vertices.begin() + 1, {{first_vertex.x, second_vertex.y}});
+				current_object.vertices.push_back({second_vertex.x, first_vertex.y});
+				break;
+			case 3:
+				current_object.draw_type = GL_TRIANGLES;
+				break;
+			case -2:
+				current_object.draw_type = GL_POLYGON;
+				break;
+			default:
+				break;
+			}
+			completed_objects.push_back(std::move(current_object));
+			current_object.vertices.clear();
+			current_object.draw_type = temp;
+		}
+
+		glutPostRedisplay();
+	}
 }
 
 void reshape(int w, int h)
@@ -78,29 +160,38 @@ void reshape(int w, int h)
 	glutPostRedisplay();
 }
 
-void mouse(int button, int state, int x, int y)
+void try_store_object()
 {
-	if (button == GLUT_LEFT_BUTTON && state == GLUT_DOWN)
+	if (static_cast<int>(current_object.vertices.size()) != total_vertices && total_vertices != -2 && total_vertices != -1)
 	{
-		if (num_of_vertices >= 3)
-			num_of_vertices = 0;
-
-		mouse_pos[0] = (float)x / raster_size[0] * canvas_size[0];
-		mouse_pos[1] = (float)(raster_size[1] - y) / raster_size[1] * canvas_size[1];
-		v[num_of_vertices * 2 + 0] = mouse_pos[0];
-		v[num_of_vertices * 2 + 1] = mouse_pos[1];
-
-		num_of_vertices++;
-		glutPostRedisplay();
+		current_object.vertices.clear();
+		return;
 	}
+
+	switch (total_vertices)
+	{
+	case 2:
+		current_object.draw_type = GL_QUADS;
+		break;
+	case 3:
+		current_object.draw_type = GL_TRIANGLES;
+		break;
+	case -2:
+		current_object.draw_type = GL_POLYGON;
+		break;
+	default:
+		break;
+	}
+	completed_objects.push_back(std::move(current_object));
+	current_object.vertices.clear();
 }
 
 void motion(int x, int y)
 {
 	// mouse events are handled by OS, eventually. When using mouse in the raster window, it assumes top-left is the origin.
 	// Note: the raster window created by GLUT assumes bottom-left is the origin.
-	mouse_pos[0] = (float)x / raster_size[0] * canvas_size[0];
-	mouse_pos[1] = (float)(raster_size[1] - y) / raster_size[1] * canvas_size[1];
+	mouse_pos[0] = static_cast<float>(x) / raster_size[0] * canvas_size[0];
+	mouse_pos[1] = static_cast<float>(raster_size[1] - y) / raster_size[1] * canvas_size[1];
 
 	glutPostRedisplay();
 }
@@ -111,6 +202,7 @@ void keyboard(unsigned char key, int x, int y)
 	{
 	case 27:
 		exit(0);
+	default:
 		break;
 	}
 }
@@ -119,30 +211,75 @@ void menu(int value)
 {
 	switch (value)
 	{
+	// main menu
 	case 0: // clear
-		num_of_vertices = 0;
+		current_object.vertices.clear();
+		completed_objects.clear();
 		glutPostRedisplay();
 		break;
 	case 1: //exit
 		exit(0);
-	case 2: // red
-		color[0] = 1.0f;
-		color[1] = 0.0f;
-		color[2] = 0.0f;
+
+	// object selection
+	case 5: // point
+		try_store_object();
+		total_vertices = 1;
+		current_object.draw_type = GL_POINTS;
 		glutPostRedisplay();
 		break;
-	case 3: // green
-		color[0] = 0.0f;
-		color[1] = 1.0f;
-		color[2] = 0.0f;
+	case 6: // line
+		try_store_object();
+		total_vertices = -1;
+		current_object.draw_type = GL_LINE_STRIP;
 		glutPostRedisplay();
 		break;
-	case 4: // blue
-		color[0] = 0.0f;
-		color[1] = 0.0f;
-		color[2] = 1.0f;
+	case 7: // triangle
+		try_store_object();
+		total_vertices = 3;
+		current_object.draw_type = GL_LINE_LOOP;
 		glutPostRedisplay();
 		break;
+	case 8: // quad
+		try_store_object();
+		total_vertices = 2;
+		current_object.draw_type = GL_LINE_LOOP;
+		glutPostRedisplay();
+		break;
+	case 9: // polygon
+		try_store_object();
+		total_vertices = -2;
+		current_object.draw_type = GL_LINE_LOOP;
+		glutPostRedisplay();
+		break;
+
+	// color selection
+	case 10: // red
+		current_object.color = &red;
+		glutPostRedisplay();
+		break;
+	case 11: // green
+		current_object.color = &green;
+		glutPostRedisplay();
+		break;
+	case 12: // blue
+		current_object.color = &blue;
+		glutPostRedisplay();
+		break;
+
+	// point size selection
+	case 13: // small
+		current_object.point_size = &small_point;
+		glutPostRedisplay();
+		break;
+	case 14: // medium
+		current_object.point_size = &medium_point;
+		glutPostRedisplay();
+		break;
+	case 15: // large
+		current_object.point_size = &large_point;
+		glutPostRedisplay();
+		break;
+
 	default:
 		break;
 	}
@@ -150,15 +287,30 @@ void menu(int value)
 
 void createMenu()
 {
-	int colorMenu = glutCreateMenu(menu);
-	glutAddMenuEntry("Red", 2);
-	glutAddMenuEntry("Green", 3);
-	glutAddMenuEntry("Blue", 4);
+	const int object_menu = glutCreateMenu(menu);
+	glutAddMenuEntry("Point", 5);
+	glutAddMenuEntry("Line", 6);
+	glutAddMenuEntry("Triangles", 7);
+	glutAddMenuEntry("Quad", 8);
+	glutAddMenuEntry("Polygon", 9);
+
+	const int color_menu = glutCreateMenu(menu);
+	glutAddMenuEntry("Red", 10);
+	glutAddMenuEntry("Green", 11);
+	glutAddMenuEntry("Blue", 12);
+
+	const int point_size_menu = glutCreateMenu(menu);
+	glutAddMenuEntry("Small", 13);
+	glutAddMenuEntry("Medium", 14);
+	glutAddMenuEntry("Large", 15);
 
 	glutCreateMenu(menu);
 	glutAddMenuEntry("Clear", 0);
-	glutAddSubMenu("Colors", colorMenu);
-	glutAddMenuEntry("Exit", 1);
+	glutAddSubMenu("Objects", object_menu);
+	glutAddSubMenu("Colors", color_menu);
+	glutAddSubMenu("Sizes", point_size_menu);
+	glutAddMenuEntry("Quit", 4);
+
 	glutAttachMenu(GLUT_RIGHT_BUTTON);
 }
 
@@ -168,7 +320,7 @@ int main(int argc, char* argv[])
 	glutInit(&argc, argv);
 	glutInitDisplayMode(GLUT_DOUBLE | GLUT_RGBA);
 	glutInitWindowSize(raster_size[0], raster_size[1]);
-	glutCreateWindow("Mouse Event - draw a triangle");
+	glutCreateWindow("2D Drawing");
 
 	glutReshapeFunc(reshape);
 	glutDisplayFunc(display);
