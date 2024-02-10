@@ -64,6 +64,7 @@ void display()
 	{
 		glColor3f(object->color->r, object->color->g, object->color->b);
 		glPointSize(*object->point_size);
+		glLineWidth(*object->point_size);
 		glBegin(object->draw_type);
 		if (current_object == object)
 		{
