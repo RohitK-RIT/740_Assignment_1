@@ -20,6 +20,7 @@ struct object
 	GLenum draw_type;
 	const color* color;
 	const float* point_size;
+	GLuint display_list;
 };
 
 constexpr float small_point = 1.0f, medium_point = 5.0f, large_point = 10.0f;
@@ -59,7 +60,7 @@ void display()
 	glLoadIdentity();
 
 	// Draw completed objects
-	for (const object* object : objects)
+	for (object* object : objects)
 	{
 		glColor3f(object->color->r, object->color->g, object->color->b);
 		glPointSize(*object->point_size);
@@ -87,11 +88,21 @@ void display()
 		}
 		else
 		{
-			for (const vertex& vertex : object->vertices)
-				glVertex2f(vertex.x, vertex.y);
+			if(object->display_list)
+			{
+				glCallList(object->display_list);
+			}
+			else
+			{
+				GLuint list = glGenLists(1);
+				glNewList(list, GL_COMPILE);
+				for (const vertex& vertex : object->vertices)
+					glVertex2f(vertex.x, vertex.y);
+				glEndList();
+				object->display_list = list;
+			}
 		}
 		glEnd();
-		glPointSize(*current_object->point_size);
 	}
 
 	glutSwapBuffers();
