@@ -50,16 +50,6 @@ void init()
 	vertices_required = 3;
 }
 
-void drawCursor()
-{
-	glColor3f(1.0f, 0.0f, 1.0f); // Purple
-	glPointSize(large_point);
-	glBegin(GL_POINTS);
-	glVertex2fv(mouse_pos);
-	glEnd();
-	glPointSize(medium_point);
-}
-
 void display()
 {
 	glClearColor(1.0, 1.0, 1.0, 0.0);
@@ -104,7 +94,6 @@ void display()
 		glPointSize(*current_object->point_size);
 	}
 
-	drawCursor();
 	glutSwapBuffers();
 }
 
@@ -159,29 +148,6 @@ void reshape(int w, int h)
 	glutPostRedisplay();
 }
 
-bool try_store_object()
-{
-	if (static_cast<int>(current_object->vertices.size()) != vertices_required && vertices_required != -2 && vertices_required != -1)
-		return false;
-
-	switch (vertices_required)
-	{
-	case 2:
-		current_object->draw_type = GL_QUADS;
-		break;
-	case 3:
-		current_object->draw_type = GL_TRIANGLES;
-		break;
-	case -2:
-		current_object->draw_type = GL_POLYGON;
-		break;
-	default:
-		break;
-	}
-
-	return true;
-}
-
 void motion(int x, int y)
 {
 	// mouse events are handled by OS, eventually. When using mouse in the raster window, it assumes top-left is the origin.
@@ -203,6 +169,34 @@ void keyboard(unsigned char key, int x, int y)
 	}
 }
 
+void on_object_changed(GLenum draw_type)
+{
+	if (static_cast<int>(current_object->vertices.size()) != vertices_required && vertices_required != -2 && vertices_required != -1)
+	{
+		current_object->vertices.clear();
+		current_object->draw_type = draw_type;
+	}
+	else
+	{
+		switch (vertices_required)
+		{
+		case 2:
+			current_object->draw_type = GL_QUADS;
+			break;
+		case 3:
+			current_object->draw_type = GL_TRIANGLES;
+			break;
+		case -2:
+			current_object->draw_type = GL_POLYGON;
+			break;
+		default:
+			break;
+		}
+
+		create_new_object(draw_type);
+	}
+}
+
 void menu(int value)
 {
 	switch (value)
@@ -217,57 +211,27 @@ void menu(int value)
 
 	// object selection
 	case 5: // point
-		if (try_store_object())
-			create_new_object(GL_POINTS);
-		else
-		{
-			current_object->vertices.clear();
-			current_object->draw_type = GL_POINTS;
-		}
+		on_object_changed(GL_POINTS);
 		vertices_required = 1;
 		glutPostRedisplay();
 		break;
 	case 6: // line
-		if (try_store_object())
-			create_new_object(GL_LINE_STRIP);
-		else
-		{
-			current_object->vertices.clear();
-			current_object->draw_type = GL_LINE_STRIP;
-		}
+		on_object_changed(GL_LINE_STRIP);
 		vertices_required = -1;
 		glutPostRedisplay();
 		break;
 	case 7: // triangle
-		if (try_store_object())
-			create_new_object(GL_LINE_LOOP);
-		else
-		{
-			current_object->vertices.clear();
-			current_object->draw_type = GL_LINE_LOOP;
-		}
+		on_object_changed(GL_LINE_LOOP);
 		vertices_required = 3;
 		glutPostRedisplay();
 		break;
 	case 8: // quad
-		if (try_store_object())
-			create_new_object(GL_LINE_LOOP);
-		else
-		{
-			current_object->vertices.clear();
-			current_object->draw_type = GL_LINE_LOOP;
-		}
+		on_object_changed(GL_LINE_LOOP);
 		vertices_required = 2;
 		glutPostRedisplay();
 		break;
 	case 9: // polygon
-		if (try_store_object())
-			create_new_object(GL_LINE_LOOP);
-		else
-		{
-			current_object->vertices.clear();
-			current_object->draw_type = GL_LINE_LOOP;
-		}
+		on_object_changed(GL_LINE_LOOP);
 		vertices_required = -2;
 		glutPostRedisplay();
 		break;
