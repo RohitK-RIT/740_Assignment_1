@@ -29,11 +29,11 @@ float canvas_size[] = {10.0f, 10.0f};
 int raster_size[] = {800, 600};
 
 float mouse_pos[2];
-int total_vertices;
+int vertices_required;
 object* current_object;
 vector<object*> objects;
 
-void create_new_object(GLenum draw_type, const color* color, const float* point_size)
+void create_new_object(GLenum draw_type = current_object->draw_type, const color* color = current_object->color, const float* point_size = current_object->point_size)
 {
 	objects.push_back(new object());
 	current_object = objects.back();
@@ -47,7 +47,7 @@ void init()
 {
 	mouse_pos[0] = mouse_pos[1] = 0.0f;
 	create_new_object(GL_LINE_LOOP, &red, &small_point);
-	total_vertices = 3;
+	vertices_required = 3;
 }
 
 void drawCursor()
@@ -76,7 +76,7 @@ void display()
 		glBegin(object->draw_type);
 		if (current_object == object)
 		{
-			if (total_vertices == 2)
+			if (vertices_required == 2)
 			{
 				if (!current_object->vertices.empty())
 				{
@@ -117,10 +117,10 @@ void mouse(int button, int state, int x, int y)
 
 		current_object->vertices.push_back({mouse_pos[0], mouse_pos[1]});
 
-		if (static_cast<int>(current_object->vertices.size()) == total_vertices)
+		if (static_cast<int>(current_object->vertices.size()) == vertices_required)
 		{
 			const auto temp = current_object->draw_type;
-			switch (total_vertices)
+			switch (vertices_required)
 			{
 			case 2:
 				current_object->draw_type = GL_QUADS;
@@ -139,7 +139,7 @@ void mouse(int button, int state, int x, int y)
 				break;
 			}
 
-			create_new_object(temp, current_object->color, current_object->point_size);
+			create_new_object(temp);
 		}
 
 		glutPostRedisplay();
@@ -159,15 +159,12 @@ void reshape(int w, int h)
 	glutPostRedisplay();
 }
 
-void try_store_object()
+bool try_store_object()
 {
-	if (static_cast<int>(current_object->vertices.size()) != total_vertices && total_vertices != -2 && total_vertices != -1)
-	{
-		current_object->vertices.clear();
-		return;
-	}
+	if (static_cast<int>(current_object->vertices.size()) != vertices_required && vertices_required != -2 && vertices_required != -1)
+		return false;
 
-	switch (total_vertices)
+	switch (vertices_required)
 	{
 	case 2:
 		current_object->draw_type = GL_QUADS;
@@ -182,7 +179,7 @@ void try_store_object()
 		break;
 	}
 
-	create_new_object(current_object->draw_type, current_object->color, current_object->point_size);
+	return true;
 }
 
 void motion(int x, int y)
@@ -212,7 +209,6 @@ void menu(int value)
 	{
 	// main menu
 	case 0: // clear
-		current_object->vertices.clear();
 		objects.clear();
 		glutPostRedisplay();
 		break;
@@ -221,33 +217,58 @@ void menu(int value)
 
 	// object selection
 	case 5: // point
-		try_store_object();
-		total_vertices = 1;
-		current_object->draw_type = GL_POINTS;
+		if (try_store_object())
+			create_new_object(GL_POINTS);
+		else
+		{
+			current_object->vertices.clear();
+			current_object->draw_type = GL_POINTS;
+		}
+		vertices_required = 1;
 		glutPostRedisplay();
 		break;
 	case 6: // line
-		try_store_object();
-		total_vertices = -1;
-		current_object->draw_type = GL_LINE_STRIP;
+		if (try_store_object())
+			create_new_object(GL_LINE_STRIP);
+		else
+		{
+			current_object->vertices.clear();
+			current_object->draw_type = GL_LINE_STRIP;
+		}
+		vertices_required = -1;
 		glutPostRedisplay();
 		break;
 	case 7: // triangle
-		try_store_object();
-		total_vertices = 3;
-		current_object->draw_type = GL_LINE_LOOP;
+		if (try_store_object())
+			create_new_object(GL_LINE_LOOP);
+		else
+		{
+			current_object->vertices.clear();
+			current_object->draw_type = GL_LINE_LOOP;
+		}
+		vertices_required = 3;
 		glutPostRedisplay();
 		break;
 	case 8: // quad
-		try_store_object();
-		total_vertices = 2;
-		current_object->draw_type = GL_LINE_LOOP;
+		if (try_store_object())
+			create_new_object(GL_LINE_LOOP);
+		else
+		{
+			current_object->vertices.clear();
+			current_object->draw_type = GL_LINE_LOOP;
+		}
+		vertices_required = 2;
 		glutPostRedisplay();
 		break;
 	case 9: // polygon
-		try_store_object();
-		total_vertices = -2;
-		current_object->draw_type = GL_LINE_LOOP;
+		if (try_store_object())
+			create_new_object(GL_LINE_LOOP);
+		else
+		{
+			current_object->vertices.clear();
+			current_object->draw_type = GL_LINE_LOOP;
+		}
+		vertices_required = -2;
 		glutPostRedisplay();
 		break;
 
